@@ -12,6 +12,7 @@ class Game {
         this.isTelegram = !!window.Telegram?.WebApp;
         if (this.isTelegram) {
             window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand(); // добавить
             const params = new URLSearchParams(window.location.search);
             this.roomId = params.get('roomId');
             this.playerColor = params.get('color'); // 'White' или 'Black'
@@ -132,13 +133,15 @@ class Game {
         if (moveResult.success) {
             this.moveHistory.push(moveInfo);
 
-            // Отправляем ход сопернику через Telegram
-            if (this.isTelegram) {
+            // Отправляем ход сопернику, только если это не полученный ход
+            if (this.isTelegram && !skipSend) {
                 this.telegramManager.sendMove({
                     from: { x: fromX, y: fromY, z: fromZ },
                     to: { x: toX, y: toY, z: toZ }
                 });
             }
+
+
 
             GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
             GraphicsEngine.unHighlightingPossibleMoves();
@@ -156,7 +159,7 @@ class Game {
 
     // Метод для получения хода от соперника через Telegram
     makeMoveFromTelegram(move) {
-        this.makeMove(move.from.x, move.from.y, move.from.z, move.to.x, move.to.y, move.to.z);
+        this.makeMove(move.from.x, move.from.y, move.from.z, move.to.x, move.to.y, move.to.z, true);
     }
 
     // Определяем, можем ли мы ходить (если это наш ход)
@@ -515,9 +518,6 @@ class TelegramNetworkManager {
         }));
     }
 }
-
-// В классе Game добавим:
-this.telegramManager = new TelegramNetworkManager(this);
 
 
 // Инициализация игры при загрузке страницы
