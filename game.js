@@ -16,6 +16,10 @@ class Game {
             this.roomId = params.get('roomId');
             this.playerColor = params.get('color'); // 'White' или 'Black'
             this.telegramManager = new TelegramNetworkManager(this);
+            // Отображаем информацию о комнате
+            document.getElementById('room-id-display').textContent = this.roomId || '-';
+            document.getElementById('player-color-display').textContent =
+                this.playerColor === 'White' ? 'Белые' : (this.playerColor === 'Black' ? 'Чёрные' : '-');
         } else {
             document.body.innerHTML = '<div style="color: white; background: #0a192f; padding: 20px;">Доступ только через Telegram-бота.</div>';
             throw new Error('Not in Telegram');
@@ -462,7 +466,6 @@ class TelegramNetworkManager {
     constructor(game) {
         this.game = game;
         this.init();
-        // Отправляем init при запуске
         this.sendInit();
     }
 
@@ -474,15 +477,9 @@ class TelegramNetworkManager {
                     case 'move':
                         this.game.makeMoveFromTelegram(msg.move);
                         break;
-                    case 'public_rooms_list':
-                        this.displayPublicRooms(msg.rooms);
-                        break;
-                    case 'join_success':
-                        // Перенаправляем на URL с параметрами
-                        window.location.href = msg.url;
-                        break;
-                    case 'error':
-                        alert('Ошибка: ' + msg.message);
+                    case 'opponent_joined':
+                    case 'opponent_online':
+                        document.getElementById('opponent-status').textContent = 'в игре';
                         break;
                     default:
                         console.log('Неизвестный тип сообщения', msg);
@@ -510,38 +507,12 @@ class TelegramNetworkManager {
         }));
     }
 
-    requestPublicRooms() {
+    // Периодический poll для получения отложенных ходов (можно вызывать после каждого хода или по таймеру)
+    pollMoves() {
         window.Telegram.WebApp.sendData(JSON.stringify({
-            type: 'get_public_rooms'
+            type: 'poll',
+            roomId: this.game.roomId
         }));
-    }
-
-    joinPublicRoom(roomId) {
-        window.Telegram.WebApp.sendData(JSON.stringify({
-            type: 'join_public',
-            targetRoomId: roomId
-        }));
-    }
-
-    displayPublicRooms(rooms) {
-        const container = document.getElementById('tg-public-rooms');
-        if (!container) return;
-        container.innerHTML = '';
-        if (rooms.length === 0) {
-            container.innerHTML = '<div>Нет доступных комнат</div>';
-            return;
-        }
-        rooms.forEach(r => {
-            const div = document.createElement('div');
-            div.style.margin = '5px 0';
-            div.innerHTML = `
-                Комната ${r.roomId} 
-                <button class="game-btn" onclick="window.telegramManager.joinPublicRoom('${r.roomId}')">
-                    Присоединиться
-                </button>
-            `;
-            container.appendChild(div);
-        });
     }
 }
 
