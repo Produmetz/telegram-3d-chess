@@ -245,37 +245,6 @@
             cursor: pointer;
         }
 
-        /* Новые стили для сетевой игры */
-        .network-section {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #4cc9f0;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-
-        .network-section.visible {
-            max-height: 1000px;
-        }
-
-        .toggle-network-btn {
-            background: #4cc9f0;
-            border: none;
-            color: #0a192f;
-            padding: 8px 12px;
-            margin: 5px 0;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-            width: 100%;
-        }
-
-        .toggle-network-btn:hover {
-            background: #7bdff9;
-        }
-
         .sub-section {
             margin-bottom: 15px;
             border-bottom: 1px solid rgba(76, 201, 240, 0.3);
@@ -432,6 +401,7 @@
                 <div id="game-status" style="color: #ff5722; margin-top: 10px;"></div>
             </div>
         </div>
+
         <!-- Секция игры -->
         <div class="panel-section">
             <h3>Игра</h3>
@@ -444,21 +414,21 @@
                     <button id="undo-move" class="game-btn">Отменить ход</button>
                     <button id="position-editor" class="game-btn">Редактор позиций</button>
                 </div>
-
-
             </div>
         </div>
 
-        <h4>Telegram игра</h4>
-        <div class="sub-content">
-            <div>Статус: <span id="tg-status">Ожидание...</span></div>
-            <div>Комната: <span id="tg-room-id">-</span></div>
-            <div>Ваш цвет: <span id="tg-player-color">-</span></div>
-            <div>Противник: <span id="tg-opponent-name">-</span></div>
-            <button id="tg-invite" class="game-btn">Создать приглашение</button>
-            <div id="tg-public-rooms" style="max-height: 150px; overflow-y: auto;">
-                <!-- Список публичных комнат будет вставляться сюда -->
-            </div><button id="refresh-rooms-btn" class="game-btn" style="width:100%; margin-top:5px;">Обновить список</button>
+        <!-- Секция Telegram игра (переработана в едином стиле) -->
+        <div class="panel-section">
+            <h3>Telegram игра</h3>
+            <div class="panel-content">
+                <div>Статус: <span id="tg-status">Ожидание...</span></div>
+                <div>Комната: <span id="tg-room-id">-</span></div>
+                <div>Ваш цвет: <span id="tg-player-color">-</span></div>
+                <div>Противник: <span id="tg-opponent-name">-</span></div>
+                <button id="tg-invite" class="game-btn" style="margin-top: 10px;">Создать приглашение</button>
+                <div id="tg-public-rooms" style="max-height: 150px; overflow-y: auto; margin-top: 10px; margin-bottom: 5px;"></div>
+                <button id="refresh-rooms-btn" class="game-btn" style="width:100%;">Обновить список</button>
+            </div>
         </div>
 
         <!-- Секция настроек -->
@@ -508,8 +478,6 @@
                 </div>
             </div>
         </div>
-
-
     </div>
 
     <!-- Скрытый input для выбора файла -->
@@ -524,11 +492,6 @@
     <script src="graphics.js"></script>
     <script src="game.js"></script>
     <script src="event-handlers.js"></script>
-
-    <!-- Скрипт для работы с панелями управления -->
-    <script>
-
-    </script>
 </body>
 
 </html>
