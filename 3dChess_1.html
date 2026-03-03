@@ -315,6 +315,10 @@
         .sub-section.collapsed .sub-content {
             max-height: 0;
         }
+
+        .tg-hidden {
+            display: none;
+        }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -428,6 +432,34 @@
                 <div id="game-status" style="color: #ff5722; margin-top: 10px;"></div>
             </div>
         </div>
+        <!-- Секция игры -->
+        <div class="panel-section">
+            <h3>Игра</h3>
+            <div class="panel-content">
+                <h4>Управление игрой</h4>
+                <div class="buttons-row">
+                    <button id="save-game" class="game-btn">Сохранить игру</button>
+                    <button id="load-game" class="game-btn">Загрузить игру</button>
+                    <button id="new-game" class="game-btn">Новая игра</button>
+                    <button id="undo-move" class="game-btn">Отменить ход</button>
+                    <button id="position-editor" class="game-btn">Редактор позиций</button>
+                </div>
+
+
+            </div>
+        </div>
+
+        <h4>Telegram игра</h4>
+        <div class="sub-content">
+            <div>Статус: <span id="tg-status">Ожидание...</span></div>
+            <div>Комната: <span id="tg-room-id">-</span></div>
+            <div>Ваш цвет: <span id="tg-player-color">-</span></div>
+            <div>Противник: <span id="tg-opponent-name">-</span></div>
+            <button id="tg-invite" class="game-btn">Создать приглашение</button>
+            <div id="tg-public-rooms" style="max-height: 150px; overflow-y: auto;">
+                <!-- Список публичных комнат будет вставляться сюда -->
+            </div><button id="refresh-rooms-btn" class="game-btn" style="width:100%; margin-top:5px;">Обновить список</button>
+        </div>
 
         <!-- Секция настроек -->
         <div class="panel-section">
@@ -477,55 +509,7 @@
             </div>
         </div>
 
-        <!-- Секция игры -->
-        <div class="panel-section">
-            <h3>Игра</h3>
-            <div class="panel-content">
-                <h4>Управление игрой</h4>
-                <div class="buttons-row">
-                    <button id="save-game" class="game-btn">Сохранить игру</button>
-                    <button id="load-game" class="game-btn">Загрузить игру</button>
-                    <button id="new-game" class="game-btn">Новая игра</button>
-                    <button id="undo-move" class="game-btn">Отменить ход</button>
-                    <button id="position-editor" class="game-btn">Редактор позиций</button>
-                </div>
 
-                <div class="sub-section collapsed">
-                    <h4>Сетевая игра</h4>
-                    <div class="sub-content">
-                        <input type="text" id="server-address" class="network-input" placeholder="Адрес сервера"
-                            value="ws://localhost:8080">
-                        <input type="text" id="player-name" class="network-input" placeholder="Ваше имя">
-                        <input type="text" id="room-id" class="network-input"
-                            placeholder="ID комнаты (оставить пустым для создания новой)">
-                        <div class="buttons-row">
-                            <button id="connect-btn" class="game-btn">Подключиться</button>
-                            <button id="create-room-btn" class="game-btn">Создать комнату</button>
-                            <button id="disconnect-btn" class="game-btn" style="display:none;">Отключиться</button>
-                        </div>
-                        <div id="network-status">Не подключено</div>
-                        <div>ID комнаты: <span id="room-id-display">-</span></div>
-                        <div>Ваш цвет: <span id="player-color">-</span></div>
-                        <div>Противник: <span id="opponent-name">-</span></div>
-                        <button id="offer-undo" class="game-btn">Предложить отмену хода</button>
-                        <div id="undo-status" style="margin-top: 10px; display: none;">
-                            Ожидание ответа на предложение отмены хода...
-                            <button id="cancel-undo" class="game-btn" style="margin-left: 10px;">Отменить</button>
-                        </div>
-                        <div class="sub-section collapsed">
-                            <h4>Чат</h4>
-                            <div class="sub-content">
-                                <div id="chat-messages"
-                                    style="height: 100px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #4cc9f0; padding: 5px;">
-                                </div>
-                                <input type="text" id="chat-input" class="network-input" placeholder="Сообщение...">
-                                <button id="send-chat-btn" class="game-btn">Отправить</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Скрытый input для выбора файла -->
@@ -538,7 +522,6 @@
     <!-- Подключаем ваш скрипт -->
     <script src="chess-engine.js"></script>
     <script src="graphics.js"></script>
-    <script src="network.js"></script>
     <script src="game.js"></script>
     <script src="event-handlers.js"></script>
 
