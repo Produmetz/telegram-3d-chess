@@ -516,11 +516,9 @@ class TelegramNetworkManager {
     }
 }
 
+// В классе Game добавим:
+this.telegramManager = new TelegramNetworkManager(this);
 
-// И кнопка для обновления списка (нужно добавить в HTML)
-document.getElementById('refresh-rooms-btn').addEventListener('click', () => {
-    window.chessGame.telegramManager.requestPublicRooms();
-});
 
 // Инициализация игры при загрузке страницы
 window.addEventListener('load', () => {
