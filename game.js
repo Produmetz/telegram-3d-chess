@@ -3,42 +3,32 @@
 
 class Game {
     constructor() {
-        this.currentPlayer = 'White'; // Начинают белые
+        this.currentPlayer = 'White';
         this.moveHistory = [];
-        this.isDragging = false; // Флаг для отслеживания перетаскивания
-        this.dragThreshold = 5; // Порог движения мыши в пикселях
-
+        this.isDragging = false;
+        this.dragThreshold = 5;
         this.isStandardPosition = true;
-        this.networkManager = new NetworkManager(this);
-        this.isNetworkGame = false;
-        this.isNetworkMove = false;
-        this.isMyTurn = true;
-        // Инициализируем игру
+
         this.isTelegram = !!window.Telegram?.WebApp;
         if (this.isTelegram) {
             window.Telegram.WebApp.ready();
-            // Параметры запуска (передаются ботом в URL)
             const params = new URLSearchParams(window.location.search);
             this.roomId = params.get('roomId');
             this.playerColor = params.get('color'); // 'White' или 'Black'
             this.telegramManager = new TelegramNetworkManager(this);
+        } else {
+            document.body.innerHTML = '<div style="color: white; background: #0a192f; padding: 20px;">Доступ только через Telegram-бота.</div>';
+            throw new Error('Not in Telegram');
         }
+
         this.init();
     }
 
     init() {
-        // Инициализация шахматного движка
         ChessEngine.InitGame();
-
-        // Создаем доску с фигурами
         createAndFillBoardOnPole(ChessEngine.Pole);
-
-        // Добавляем обработчики событий
         this.setupEventListeners();
-
-        // Запускаем анимацию
         animate();
-
         console.log('Игра началась! Ходят ' + this.currentPlayer);
         this.updateUI();
     }
@@ -48,7 +38,7 @@ class Game {
         this.currentPlayer = 'White';
         this.moveHistory = [];
         this.isDragging = false;
-        this.isStandardPosition = true; // Устанавливаем флаг в true
+        this.isStandardPosition = true;
 
         createAndFillBoardOnPole(ChessEngine.Pole);
         this.updateUI();
@@ -59,7 +49,7 @@ class Game {
         let mouseDownX, mouseDownY;
 
         canvas.addEventListener('mousedown', (event) => {
-            if (event.button === 0) { // Левая кнопка мыши
+            if (event.button === 0) {
                 mouseDownX = event.clientX;
                 mouseDownY = event.clientY;
                 this.isDragging = false;
@@ -67,10 +57,9 @@ class Game {
         });
 
         canvas.addEventListener('mousemove', (event) => {
-            if (event.buttons === 1) { // Левая кнопка зажата
+            if (event.buttons === 1) {
                 const dx = Math.abs(event.clientX - mouseDownX);
                 const dy = Math.abs(event.clientY - mouseDownY);
-
                 if (dx > this.dragThreshold || dy > this.dragThreshold) {
                     this.isDragging = true;
                 }
@@ -82,43 +71,33 @@ class Game {
                 this.handleCanvasClick(event);
             }
         });
-
     }
 
     handleCanvasClick(event) {
-
         const cellCoords = GraphicsEngine.cellFromClick(event.clientX, event.clientY);
-
         if (!cellCoords) return;
 
         const { i, j, k } = cellCoords;
         const figure = ChessEngine.Pole[i][j][k];
 
-        // Если клетка уже выбрана
         if (GraphicsEngine.highlightedCell &&
             GraphicsEngine.highlightedCell.i == i &&
             GraphicsEngine.highlightedCell.j == j &&
             GraphicsEngine.highlightedCell.k == k) {
-            // Снимаем выделение
             GraphicsEngine.unselectCell();
             GraphicsEngine.unHighlightingPossibleMoves();
             return;
         }
 
-        // Если есть выбранная клетка и клик на возможный ход
-        if (GraphicsEngine.highlightedCell && this.isPossibleMove(i, j, k) && this.isMyTurn) {
-            // Выполняем ход
+        if (GraphicsEngine.highlightedCell && this.isPossibleMove(i, j, k) && this.isMyTurn()) {
             this.makeMove(GraphicsEngine.highlightedCell.i, GraphicsEngine.highlightedCell.j, GraphicsEngine.highlightedCell.k, i, j, k);
             return;
         }
 
-        // Если клик на фигуру текущего игрока
-        if (figure && figure.Color === this.currentPlayer) {
-            // Выбираем эту фигуру
+        if (figure && figure.Color === this.currentPlayer && this.isMyTurn()) {
             GraphicsEngine.selectCell(i, j, k);
             GraphicsEngine.highlightingPossibleMoves(ChessEngine.MaybeMovesWithCheck(i, j, k, ChessEngine.Pole));
-        } else if (highlightedCell) {
-            // Если есть выбранная клетка, но клик не на возможный ход - снимаем выделение
+        } else if (GraphicsEngine.highlightedCell) {
             GraphicsEngine.unHighlightingPossibleMoves();
             GraphicsEngine.unselectCell();
         }
@@ -131,10 +110,6 @@ class Game {
     }
 
     makeMove(fromX, fromY, fromZ, toX, toY, toZ) {
-
-
-
-        // Сохраняем информацию о ходе для возможной отмены
         const capturedFigure = ChessEngine.Pole[toX][toY][toZ];
         const moveInfo = {
             from: { x: fromX, y: fromY, z: fromZ },
@@ -143,7 +118,6 @@ class Game {
             capturedFigure: capturedFigure
         };
 
-        // Выполняем ход в шахматном движке
         const moveResult = ChessEngine.Move(
             fromX, fromY, fromZ,
             toX, toY, toZ,
@@ -151,59 +125,46 @@ class Game {
             this.currentPlayer == 'White'
         );
 
-
         if (moveResult.success) {
-            // Сохраняем ход в историю
             this.moveHistory.push(moveInfo);
-            // Отправляем ход противнику, если это сетевая игра
-            if (this.isNetworkGame && !this.isNetworkMove) {
-                this.setMyTurn(false);
-                this.networkManager.sendMove({
-                    from: { x: fromX, y: fromY, z: fromZ },
-                    to: { x: toX, y: toY, z: toZ }
-                });
 
-
-            }
+            // Отправляем ход сопернику через Telegram
             if (this.isTelegram) {
                 this.telegramManager.sendMove({
                     from: { x: fromX, y: fromY, z: fromZ },
                     to: { x: toX, y: toY, z: toZ }
                 });
             }
-            // Обновляем графическое представление
-            //drawAfterMove(fromX, fromY, fromZ, toX, toY, toZ);
+
             GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
             GraphicsEngine.unHighlightingPossibleMoves();
 
-            // Меняем текущего игрока
             this.currentPlayer = moveResult.nextMove;
-
-            // Проверяем состояние игры
             this.checkGameState();
-
-            // Обновляем UI
             this.updateUI();
-
             console.log(`Ход выполнен. Теперь ходят: ${this.currentPlayer}`);
         } else {
             console.log('Недопустимый ход:', moveResult.message);
         }
 
-        // Снимаем выделение с клетки
         GraphicsEngine.unselectCell();
     }
 
+    // Метод для получения хода от соперника через Telegram
+    makeMoveFromTelegram(move) {
+        this.makeMove(move.from.x, move.from.y, move.from.z, move.to.x, move.to.y, move.to.z);
+    }
+
+    // Определяем, можем ли мы ходить (если это наш ход)
+    isMyTurn() {
+        if (!this.isTelegram) return true; // локально всегда можем
+        return this.playerColor === this.currentPlayer;
+    }
+
     skipTurn() {
-        // Меняем текущего игрока
         this.currentPlayer = this.currentPlayer === 'White' ? 'Black' : 'White';
-
-        // Проверяем состояние игры
         this.checkGameState();
-
-        // Обновляем UI
         this.updateUI();
-
         console.log(`Ход пропущен. Теперь ходят: ${this.currentPlayer}`);
     }
 
@@ -213,38 +174,26 @@ class Game {
         const lastMove = this.moveHistory.pop();
         const { from, to, movedFigure, capturedFigure } = lastMove;
 
-        // Восстанавливаем фигуру на исходной позиции
         ChessEngine.Pole[from.x][from.y][from.z] = movedFigure;
-
-        // Восстанавливаем взятие фигуры, если было
         if (capturedFigure) {
             ChessEngine.Pole[to.x][to.y][to.z] = capturedFigure;
         } else {
             ChessEngine.Pole[to.x][to.y][to.z] = null;
         }
 
-        // Меняем текущего игрока
         this.currentPlayer = this.currentPlayer === 'White' ? 'Black' : 'White';
-
         createAndFillBoardOnPole(ChessEngine.Pole);
-        // Проверяем состояние игры
         this.checkGameState();
-
-        // Обновляем UI
         this.updateUI();
-
         console.log('Ход отменен. Теперь ходят: ' + this.currentPlayer);
     }
 
     checkGameState() {
-
-        // Проверяем наличие фигур
         if (!GraphicsEngine.isWhiteFigure && !GraphicsEngine.isBlackFigure) {
             document.getElementById('game-status').textContent = 'Нет фигур на доске! Игра не может продолжаться.';
             return;
         }
 
-        // Проверяем, есть ли фигуры у текущего игрока
         if ((this.currentPlayer === 'White' && !GraphicsEngine.isWhiteFigure) ||
             (this.currentPlayer === 'Black' && !GraphicsEngine.isBlackFigure)) {
             document.getElementById('game-status').textContent =
@@ -275,16 +224,8 @@ class Game {
     }
 
     updateUI() {
-        // Обновляем текущего игрока
         document.getElementById('current-player').textContent =
             this.currentPlayer === 'White' ? 'Белые' : 'Черные';
-
-        // Добавляем информацию о наличии фигур
-        const figuresInfo = document.createElement('div');
-        figuresInfo.innerHTML = `Белые фигуры: ${GraphicsEngine.isWhiteFigure ? 'есть' : 'нет'}<br>
-                            Черные фигуры: ${GraphicsEngine.isBlackFigure ? 'есть' : 'нет'}`;
-
-        // Обновляем историю ходов
         this.updateMoveHistory();
     }
 
@@ -300,12 +241,11 @@ class Game {
             historyList.appendChild(moveElement);
         });
 
-        // Прокручиваем к последнему ходу
         historyList.scrollTop = historyList.scrollHeight;
     }
+
     handleAxisChange(axisId) {
         let axis = null;
-        // Преобразуем идентификатор кнопки в значение оси
         if (axisId === 'axis-x') axis = 'x';
         else if (axisId === 'axis-y') axis = 'y';
         else if (axisId === 'axis-z') axis = 'z';
@@ -313,14 +253,6 @@ class Game {
         GraphicsEngine.setExpandedAxis(axis);
         GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
     }
-
-    /*toggleNetworkSettings() {
-        const networkSection = document.getElementById('network-section');
-        const isVisible = networkSection.style.display === 'block';
-        networkSection.style.display = isVisible ? 'none' : 'block';
-        document.getElementById('toggle-network-btn').textContent =
-            isVisible ? 'Сетевая игра ▼' : 'Сетевая игра ▲';
-    }*/
 
     saveSettings() {
         console.log('Сохранение настроек');
@@ -347,15 +279,12 @@ class Game {
         reader.onload = (e) => {
             try {
                 const settings = JSON.parse(e.target.result);
-
-                // Применяем настройки
                 document.getElementById('bg-color').value = settings.bgColor;
                 document.getElementById('board-color-1').value = settings.boardColor1;
                 document.getElementById('board-color-2').value = settings.boardColor2;
                 document.getElementById('white-figures-color').value = settings.whiteFiguresColor;
                 document.getElementById('black-figures-color').value = settings.blackFiguresColor;
 
-                // Обновляем цвета в игре
                 this.changeColor('background', settings.bgColor);
                 this.changeColor('board1', settings.boardColor1);
                 this.changeColor('board2', settings.boardColor2);
@@ -372,12 +301,9 @@ class Game {
 
     saveGame() {
         console.log('Сохранение игры');
-
-        // Определяем тип начальной расстановки
         const setupType = this.isStandardPosition ? "standart" : "custom";
         let dataToSave = '';
 
-        // Функция для преобразования фигуры в сохраняемый формат
         const serializeFigure = (figure) => {
             if (!figure) return 'null';
             return JSON.stringify({
@@ -388,13 +314,9 @@ class Game {
         };
 
         if (setupType === 'standart') {
-            // Для стандартной позиции сохраняем только тип и историю ходов
             dataToSave = setupType + "\n" + JSON.stringify(this.moveHistory);
         } else {
-            // Для кастомной позиции
             dataToSave = "custom\n" + this.currentPlayer + "\n";
-
-            // Сохраняем доску
             for (let i = 0; i < 6; i++) {
                 for (let j = 0; j < 6; j++) {
                     let row = [];
@@ -405,13 +327,10 @@ class Game {
                     dataToSave += row.join('\t') + "\n";
                 }
             }
-
-            // Сохраняем историю ходов
             dataToSave += JSON.stringify(this.moveHistory);
         }
 
         const dataBlob = new Blob([dataToSave], { type: 'text/plain' });
-
         const link = document.createElement('a');
         link.href = URL.createObjectURL(dataBlob);
         link.download = 'chess_game_save.txt';
@@ -427,28 +346,17 @@ class Game {
                 const lines = data.split('\n');
                 const setupType = lines[0].trim();
 
-                // Функция для создания фигуры из данных
                 const createFigureFromData = (figureData) => {
                     if (!figureData || figureData === 'null') return null;
-
                     try {
-                        const parsedData = typeof figureData === 'string' ?
-                            JSON.parse(figureData) : figureData;
-
-                        // Если данные уже являются объектом фигуры с указанием типа
+                        const parsedData = typeof figureData === 'string' ? JSON.parse(figureData) : figureData;
                         if (parsedData.__type) {
                             const figureClass = window.ChessEngine[parsedData.__type];
-                            if (figureClass) {
-                                return new figureClass();
-                            }
-                        }
-                        // Старый формат - определяем по цвету и имени
-                        else if (parsedData.Color && parsedData.Name) {
+                            if (figureClass) return new figureClass();
+                        } else if (parsedData.Color && parsedData.Name) {
                             const className = parsedData.Color + parsedData.Name;
                             const figureClass = window.ChessEngine[className];
-                            if (figureClass) {
-                                return new figureClass();
-                            }
+                            if (figureClass) return new figureClass();
                         }
                     } catch (error) {
                         console.warn('Ошибка создания фигуры:', error);
@@ -457,20 +365,16 @@ class Game {
                 };
 
                 if (setupType === 'standart') {
-                    // Загружаем стандартную расстановку
                     ChessEngine.InitGame();
                     this.currentPlayer = 'White';
                     this.moveHistory = [];
                     this.isStandardPosition = true;
 
-                    // Воспроизводим ходы из истории
                     if (lines.length > 1 && lines[1].trim() !== '') {
                         const moves = JSON.parse(lines[1]);
                         for (const move of moves) {
-                            // Обновляем фигуры в истории ходов
                             move.movedFigure = createFigureFromData(move.movedFigure);
                             move.capturedFigure = createFigureFromData(move.capturedFigure);
-
                             this.makeMove(
                                 move.from.x, move.from.y, move.from.z,
                                 move.to.x, move.to.y, move.to.z
@@ -478,15 +382,12 @@ class Game {
                         }
                     }
                 } else if (setupType === 'custom' || setupType === 'Custom Position') {
-                    // Загружаем кастомную расстановку
                     this.isStandardPosition = false;
                     this.currentPlayer = lines[1].trim();
                     this.moveHistory = [];
 
-                    // Создаем пустое поле
                     ChessEngine.FillPole();
 
-                    // Загружаем данные доски
                     for (let i = 0; i < 6; i++) {
                         for (let j = 0; j < 6; j++) {
                             const lineIndex = 2 + i * 6 + j;
@@ -501,8 +402,7 @@ class Game {
                         }
                     }
 
-                    // Загружаем историю ходов, если есть
-                    const historyIndex = 2 + 36; // 36 строк для доски 6x6
+                    const historyIndex = 2 + 36;
                     if (lines.length > historyIndex && lines[historyIndex].trim() !== '') {
                         const moves = JSON.parse(lines[historyIndex]);
                         for (const move of moves) {
@@ -516,11 +416,9 @@ class Game {
                     return;
                 }
 
-                // Обновляем графику
                 GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
                 this.checkGameState();
                 this.updateUI();
-
                 alert('Игра успешно загружена!');
             } catch (error) {
                 alert('Ошибка при загрузке игры: ' + error.message);
@@ -528,131 +426,6 @@ class Game {
             }
         };
         reader.readAsText(file);
-    }
-
-
-    // Добавьте методы:
-    connectToServer() {
-        const address = document.getElementById('server-address').value;
-        const playerName = document.getElementById('player-name').value;
-        const roomId = document.getElementById('room-id').value.trim() || null;
-
-        if (!address || !playerName) {
-            alert('Заполните адрес сервера и ваше имя');
-            return;
-        }
-
-        this.networkManager.connect(address, playerName, roomId);
-        this.isNetworkGame = true;
-        document.getElementById('disconnect-btn').style.display = 'inline-block';
-    }
-
-    // Новый метод для установки очереди хода
-    setMyTurn(isMyTurn) {
-        this.isMyTurn = isMyTurn;
-    }
-
-    createRoom() {
-        this.connectToServer();
-    }
-
-    disconnect() {
-        this.networkManager.disconnect();
-        this.isNetworkGame = false;
-        this.setMyTurn(true); // Всегда наша очередь в локальной игре
-        document.getElementById('disconnect-btn').style.display = 'none';
-        this.updateNetworkStatus('Не подключено');
-    }
-
-    offerUndo() {
-        this.networkManager.sendUndoRequest();
-    }
-
-    sendChatMessage() {
-        const message = document.getElementById('chat-input').value;
-        if (message.trim() === '') return;
-
-        this.networkManager.sendChat(message);
-        this.addChatMessage('Вы', message);
-        document.getElementById('chat-input').value = '';
-    }
-
-    // Методы для обновления UI
-    updateNetworkStatus(status) {
-        document.getElementById('network-status').textContent = status;
-    }
-
-    updateRoomId(roomId) {
-        document.getElementById('room-id-display').textContent = roomId;
-    }
-
-    updatePlayerColor(color) {
-        document.getElementById('player-color').textContent = color;
-    }
-
-    updateOpponentName(name) {
-        document.getElementById('opponent-name').textContent = name;
-    }
-
-    addChatMessage(sender, message) {
-        const chatMessages = document.getElementById('chat-messages');
-        const messageElement = document.createElement('div');
-        messageElement.textContent = `${sender}: ${message}`;
-        chatMessages.appendChild(messageElement);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    makeMoveFromNetwork(move) {
-        this.isNetworkMove = true;
-        this.makeMove(move.from.x, move.from.y, move.from.z, move.to.x, move.to.y, move.to.z);
-        this.isNetworkMove = false;
-        this.setMyTurn(true); // После хода противника наша очередь
-    }
-
-    handleUndoRequest() {
-        // Сохраняем информацию о запросе
-        this.pendingUndoRequest = true;
-
-        const agree = confirm('Противник предлагает отменить ход. Вы согласны?');
-        this.networkManager.sendUndoResponse(agree);
-
-        if (agree) {
-            this.processUndo();
-        }
-
-        this.pendingUndoRequest = null;
-    }
-
-    handleUndoResponse(accepted) {
-        if (accepted) {
-            this.processUndo();
-        } else {
-            alert('Противник отклонил предложение отменить ход.');
-        }
-    }
-
-    processUndo() {
-        if (this.moveHistory.length === 0) return;
-
-        // Определяем, кто сделал последний ход
-        const lastMove = this.moveHistory[this.moveHistory.length - 1];
-        const lastMoveByMe = lastMove.movedFigure.Color === (this.playerColor === 'White' ? 'White' : 'Black');
-
-        if (lastMoveByMe) {
-            // Если последний ход сделан нами - отменяем один ход
-            this.undoMove();
-        } else if (this.moveHistory.length > 1) {
-            // Если последний ход сделан противником - отменяем два хода
-            this.undoMove();
-            this.undoMove();
-        }
-    }
-    cancelUndoRequest() {
-        if (this.pendingUndoRequest) {
-            this.networkManager.sendUndoResponse(false);
-            this.pendingUndoRequest = null;
-            document.getElementById('undo-status').style.display = 'none';
-        }
     }
 
     changeColor(type, value) {
@@ -685,57 +458,115 @@ class Game {
     }
 }
 
+class TelegramNetworkManager {
+    constructor(game) {
+        this.game = game;
+        this.init();
+        // Отправляем init при запуске
+        this.sendInit();
+    }
+
+    init() {
+        window.Telegram.WebApp.onEvent('message', (data) => {
+            try {
+                const msg = JSON.parse(data);
+                switch (msg.type) {
+                    case 'move':
+                        this.game.makeMoveFromTelegram(msg.move);
+                        break;
+                    case 'public_rooms_list':
+                        this.displayPublicRooms(msg.rooms);
+                        break;
+                    case 'join_success':
+                        // Перенаправляем на URL с параметрами
+                        window.location.href = msg.url;
+                        break;
+                    case 'error':
+                        alert('Ошибка: ' + msg.message);
+                        break;
+                    default:
+                        console.log('Неизвестный тип сообщения', msg);
+                }
+            } catch (e) {
+                console.error('Ошибка обработки сообщения Telegram', e);
+            }
+        });
+    }
+
+    sendInit() {
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'init',
+            roomId: this.game.roomId,
+            color: this.game.playerColor
+        }));
+    }
+
+    sendMove(move) {
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'move',
+            roomId: this.game.roomId,
+            playerColor: this.game.playerColor,
+            move: move
+        }));
+    }
+
+    requestPublicRooms() {
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'get_public_rooms'
+        }));
+    }
+
+    joinPublicRoom(roomId) {
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'join_public',
+            targetRoomId: roomId
+        }));
+    }
+
+    displayPublicRooms(rooms) {
+        const container = document.getElementById('tg-public-rooms');
+        if (!container) return;
+        container.innerHTML = '';
+        if (rooms.length === 0) {
+            container.innerHTML = '<div>Нет доступных комнат</div>';
+            return;
+        }
+        rooms.forEach(r => {
+            const div = document.createElement('div');
+            div.style.margin = '5px 0';
+            div.innerHTML = `
+                Комната ${r.roomId} 
+                <button class="game-btn" onclick="window.telegramManager.joinPublicRoom('${r.roomId}')">
+                    Присоединиться
+                </button>
+            `;
+            container.appendChild(div);
+        });
+    }
+}
+
+// В классе Game добавим:
+this.telegramManager = new TelegramNetworkManager(this);
+
+// И кнопка для обновления списка (нужно добавить в HTML)
+document.getElementById('refresh-rooms-btn').addEventListener('click', () => {
+    window.chessGame.telegramManager.requestPublicRooms();
+});
+
 // Инициализация игры при загрузке страницы
 window.addEventListener('load', () => {
     window.chessGame = new Game();
 });
 
-////////////////////////////////////////////Обработчики 
-
 // Обработчики для изменения цветов фигур
 document.getElementById('white-figures-color').addEventListener('input', (e) => {
-    //changeFigureColor('white', e.target.value);
-    colors = GraphicsEngine.getColors();
+    const colors = GraphicsEngine.getColors();
     colors.whiteFigureColor = GraphicsEngine.hexToColor(e.target.value);
     GraphicsEngine.updateColors(colors);
 });
 
 document.getElementById('black-figures-color').addEventListener('input', (e) => {
-    colors = GraphicsEngine.getColors();
+    const colors = GraphicsEngine.getColors();
     colors.blackFigureColor = GraphicsEngine.hexToColor(e.target.value);
     GraphicsEngine.updateColors(colors);
 });
-
-class TelegramNetworkManager {
-  constructor(game) {
-    this.game = game;
-    this.lastMove = null;
-    this.pollInterval = null;
-    this.startPolling();
-  }
-
-  sendMove(move) {
-    if (!window.Telegram?.WebApp) return;
-    window.Telegram.WebApp.sendData(JSON.stringify({
-      type: 'move',
-      roomId: this.game.roomId,
-      playerColor: this.game.playerColor,
-      move: move
-    }));
-  }
-
-  startPolling() {
-    this.pollInterval = setInterval(() => {
-      if (!window.Telegram?.WebApp) return;
-      window.Telegram.WebApp.sendData(JSON.stringify({
-        type: 'poll',
-        roomId: this.game.roomId,
-        playerColor: this.game.playerColor
-      }));
-    }, 3000); // каждые 3 секунды
-  }
-
-  stopPolling() {
-    if (this.pollInterval) clearInterval(this.pollInterval);
-  }
-}

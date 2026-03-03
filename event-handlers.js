@@ -23,33 +23,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Обработчик для переключения сетевых настроек
-    /*document.getElementById('toggle-network-btn').addEventListener('click', function () {
-        if (window.chessGame) {
-            window.chessGame.toggleNetworkSettings();
-        }
-    });*/
-
     // Обработчики для кнопок управления
     const buttonHandlers = {
         'save-settings': () => window.chessGame?.saveSettings(),
         'load-settings': () => document.getElementById('settings-file-input').click(),
         'save-game': () => window.chessGame?.saveGame(),
         'load-game': () => document.getElementById('file-input').click(),
-        'undo-move': () => {
-            if (!window.chessGame.isNetworkGame) {
-                window.chessGame.undoMove();
-            } else {
-                // В сетевом режиме показываем сообщение
-                alert('В сетевом режиме используйте "Предложить отмену хода"');
-            }
-        },
-        'cancel-undo': () => window.chessGame?.cancelUndoRequest(),
-        'connect-btn': () => window.chessGame?.connectToServer(),
-        'create-room-btn': () => window.chessGame?.createRoom(),
-        'disconnect-btn': () => window.chessGame?.disconnect(),
-        'offer-undo': () => window.chessGame?.offerUndo(),
-        'send-chat-btn': () => window.chessGame?.sendChatMessage(),
+        'undo-move': () => window.chessGame?.undoMove(),
         'new-game': () => window.chessGame?.resetToStandart(),
         'position-editor': () => {
             window.location.href = 'position-editor.html';
@@ -87,36 +67,22 @@ document.addEventListener('DOMContentLoaded', function () {
             element.addEventListener('input', (e) => colorPickers[id](e.target.value));
         }
     });
-
-    // Обработчик для чата
-    document.getElementById('chat-input').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            window.chessGame?.sendChatMessage();
-            this.value = '';
-        }
-    });
 });
 
-// Обработчик для контекстного меню (правой кнопки мыши)
+// Обработчик для контекстного меню
 canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault(); // Отключаем стандартное контекстное меню
+    e.preventDefault();
     return false;
 });
 
-// Добавляем обработчик события resize
+// Resize
 window.addEventListener('resize', () => GraphicsEngine.onWindowResize(), false);
 
-// Обработчик для отпускания правой кнопки мыши
+// Mouseup для правой кнопки
 canvas.addEventListener('mouseup', (e) => {
-    if (e.button === 2) { // Правая кнопка мыши
-        // Сбрасываем флаг перетаскивания при отпускании правой кнопки
-        if (window.chessGame) {
-            window.chessGame.isDragging = false;
-        }
+    if (e.button === 2 && window.chessGame) {
+        window.chessGame.isDragging = false;
     }
-});
-document.getElementById('disconnect-btn').addEventListener('click', function () {
-    window.chessGame?.disconnect();
 });
 
 // Открытие страницы обучения
