@@ -5,7 +5,6 @@ class NetworkManager {
             throw new TypeError("Cannot instantiate abstract class");
         }
     }
-
     sendMove(move) { throw new Error("Not implemented"); }
     onMove(callback) { throw new Error("Not implemented"); }
     onOpponentJoined(callback) { throw new Error("Not implemented"); }
@@ -20,20 +19,25 @@ class TelegramNetworkManager extends NetworkManager {
         this.moveCallback = null;
         this.opponentJoinedCallback = null;
         this.opponentOnlineCallback = null;
+        this.pollInterval = null;
 
         if (!window.Telegram?.WebApp) {
             throw new Error("Not in Telegram");
         }
+
+        // Инициализация
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
 
-        this.init();
-        this.startPolling(2000); // опрос отложенных ходов каждые 2 сек
+        this.setupMessageHandler();
+        this.sendInit();
+        this.startPolling(2000);
     }
 
-    init() {
+    setupMessageHandler() {
         window.Telegram.WebApp.onEvent('message', (data) => {
             console.log("📩 Получено от бота:", data);
+            document.getElementById('tg-status').textContent = 'Получено сообщение';
             try {
                 const msg = JSON.parse(data);
                 switch (msg.type) {
@@ -50,32 +54,40 @@ class TelegramNetworkManager extends NetworkManager {
                 }
             } catch (e) {
                 console.error('Ошибка обработки сообщения от бота', e);
+                document.getElementById('tg-status').textContent = 'Ошибка сообщения';
             }
         });
+    }
 
+    sendInit() {
         const initMsg = JSON.stringify({
             type: 'init',
             roomId: this.roomId,
             color: this.playerColor
         });
         console.log("📤 Отправка init:", initMsg);
+        document.getElementById('tg-status').textContent = 'Отправка init...';
         window.Telegram.WebApp.sendData(initMsg);
     }
 
     sendMove(move) {
-        window.Telegram.WebApp.sendData(JSON.stringify({
+        const msg = JSON.stringify({
             type: 'move',
             roomId: this.roomId,
             playerColor: this.playerColor,
             move: move
-        }));
+        });
+        console.log("📤 Отправка move:", msg);
+        document.getElementById('tg-status').textContent = 'Отправка хода...';
+        window.Telegram.WebApp.sendData(msg);
     }
 
     pollMoves() {
-        window.Telegram.WebApp.sendData(JSON.stringify({
+        const msg = JSON.stringify({
             type: 'poll',
             roomId: this.roomId
-        }));
+        });
+        window.Telegram.WebApp.sendData(msg);
     }
 
     startPolling(interval) {
