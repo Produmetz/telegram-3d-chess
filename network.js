@@ -1,136 +1,101 @@
 // network.js
 class NetworkManager {
-    constructor(game) {
-        this.game = game;
-        this.socket = null;
-        this.connected = false;
-        this.roomId = null;
-        this.playerColor = null;
-        this.opponentName = null;
-    }
-
-    connect(address, playerName, roomId = null) {
-        try {
-            this.socket = new WebSocket(address);
-
-            this.socket.onopen = () => {
-                this.connected = true;
-                this.game.updateNetworkStatus('Подключено');
-
-                // Отправляем информацию о подключении
-                this.send({
-                    type: 'join',
-                    playerName: playerName,
-                    roomId: roomId
-                });
-            };
-
-            this.socket.onmessage = (event) => {
-                this.handleMessage(JSON.parse(event.data));
-            };
-
-            this.socket.onclose = () => {
-                this.connected = false;
-                this.game.updateNetworkStatus('Отключено');
-            };
-
-            this.socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                this.game.updateNetworkStatus('Ошибка подключения');
-            };
-
-        } catch (error) {
-            console.error('Connection error:', error);
-            alert('Ошибка подключения к серверу');
+    constructor() {
+        if (new.target === NetworkManager) {
+            throw new TypeError("Cannot instantiate abstract class");
         }
     }
 
-    handleMessage(data) {
-        switch (data.type) {
-            case 'room_created':
-                this.roomId = data.roomId;
-                this.playerColor = 'White';
-                this.game.updateRoomId(this.roomId);
-                this.game.updatePlayerColor('Белые');
-                // При создании комнаты мы играем белыми и ходим первыми
-                this.game.setMyTurn(true);
-                break;
+    sendMove(move) { throw new Error("Not implemented"); }
+    onMove(callback) { throw new Error("Not implemented"); }
+    onOpponentJoined(callback) { throw new Error("Not implemented"); }
+    onOpponentOnline(callback) { throw new Error("Not implemented"); }
+}
 
-            case 'joined_room':
-                this.roomId = data.roomId;
-                this.playerColor = data.color;
-                this.opponentName = data.opponentName;
-                this.game.updateRoomId(this.roomId);
-                this.game.updatePlayerColor(this.playerColor === 'White' ? 'Белые' : 'Черные');
-                this.game.updateOpponentName(this.opponentName);
-                // Устанавливаем очередь хода в зависимости от цвета
-                this.game.setMyTurn(this.playerColor === 'White');
-                break;
+class TelegramNetworkManager extends NetworkManager {
+    constructor(roomId, playerColor) {
+        super();
+        this.roomId = roomId;
+        this.playerColor = playerColor;
+        this.moveCallback = null;
+        this.opponentJoinedCallback = null;
+        this.opponentOnlineCallback = null;
 
-            case 'opponent_joined':
-                this.opponentName = data.playerName;
-                this.game.updateOpponentName(this.opponentName);
-                break;
-
-            case 'move':
-                this.game.makeMoveFromNetwork(data.move);
-                break;
-
-            case 'chat':
-                this.game.addChatMessage(data.sender, data.message);
-                break;
-
-            case 'undo_request':
-                this.game.handleUndoRequest();
-                break;
-
-            case 'undo_response':
-                this.game.handleUndoResponse(data.accepted);
-                break;
-
-            case 'error':
-                alert(data.message);
-                break;
+        if (!window.Telegram?.WebApp) {
+            throw new Error("Not in Telegram");
         }
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+
+        this.init();
+        this.startPolling(2000); // опрос отложенных ходов каждые 2 сек
     }
 
-    send(data) {
-        if (this.connected) {
-            this.socket.send(JSON.stringify(data));
-        }
+    init() {
+        window.Telegram.WebApp.onEvent('message', (data) => {
+            try {
+                const msg = JSON.parse(data);
+                switch (msg.type) {
+                    case 'move':
+                        if (this.moveCallback) this.moveCallback(msg.move);
+                        break;
+                    case 'opponent_joined':
+                    case 'opponent_online':
+                        if (msg.type === 'opponent_joined' && this.opponentJoinedCallback) this.opponentJoinedCallback();
+                        if (msg.type === 'opponent_online' && this.opponentOnlineCallback) this.opponentOnlineCallback();
+                        break;
+                    default:
+                        console.log('Unknown message type', msg);
+                }
+            } catch (e) {
+                console.error('Error processing Telegram message', e);
+            }
+        });
+
+        // Отправляем init-сообщение боту
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'init',
+            roomId: this.roomId,
+            color: this.playerColor
+        }));
     }
 
     sendMove(move) {
-        this.send({
+        window.Telegram.WebApp.sendData(JSON.stringify({
             type: 'move',
+            roomId: this.roomId,
+            playerColor: this.playerColor,
             move: move
-        });
+        }));
     }
 
-    sendChat(message) {
-        this.send({
-            type: 'chat',
-            message: message
-        });
+    pollMoves() {
+        window.Telegram.WebApp.sendData(JSON.stringify({
+            type: 'poll',
+            roomId: this.roomId
+        }));
     }
 
-    sendUndoRequest() {
-        this.send({
-            type: 'undo_request'
-        });
+    startPolling(interval) {
+        this.pollInterval = setInterval(() => this.pollMoves(), interval);
     }
 
-    sendUndoResponse(accepted) {
-        this.send({
-            type: 'undo_response',
-            accepted: accepted
-        });
-    }
-
-    disconnect() {
-        if (this.socket) {
-            this.socket.close();
+    stopPolling() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
         }
-        this.connected = false;
+    }
+
+    onMove(callback) {
+        this.moveCallback = callback;
+    }
+
+    onOpponentJoined(callback) {
+        this.opponentJoinedCallback = callback;
+    }
+
+    onOpponentOnline(callback) {
+        this.opponentOnlineCallback = callback;
     }
 }

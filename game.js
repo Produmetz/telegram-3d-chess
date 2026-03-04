@@ -1,29 +1,31 @@
 // game.js
-// Основной файл игры, связывающий шахматный движок и графику
-
 class Game {
-    constructor() {
+    constructor(networkManager = null, playerColor = null, roomId = null) {
         this.currentPlayer = 'White';
         this.moveHistory = [];
         this.isDragging = false;
         this.dragThreshold = 5;
         this.isStandardPosition = true;
 
-        this.isTelegram = !!window.Telegram?.WebApp;
-        if (this.isTelegram) {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand(); // добавить
-            const params = new URLSearchParams(window.location.search);
-            this.roomId = params.get('roomId');
-            this.playerColor = params.get('color'); // 'White' или 'Black'
-            this.telegramManager = new TelegramNetworkManager(this);
-            // Отображаем информацию о комнате
-            document.getElementById('room-id-display').textContent = this.roomId || '-';
-            document.getElementById('player-color-display').textContent =
-                this.playerColor === 'White' ? 'Белые' : (this.playerColor === 'Black' ? 'Чёрные' : '-');
-        } else {
-            document.body.innerHTML = '<div style="color: white; background: #0a192f; padding: 20px;">Доступ только через Telegram-бота.</div>';
-            throw new Error('Not in Telegram');
+        this.networkManager = networkManager;
+        this.playerColor = playerColor;
+        this.roomId = roomId;
+
+        // Отображение информации о комнате
+        document.getElementById('room-id-display').textContent = this.roomId || '-';
+        document.getElementById('player-color-display').textContent =
+            this.playerColor === 'White' ? 'Белые' : (this.playerColor === 'Black' ? 'Чёрные' : '-');
+        document.getElementById('opponent-status').textContent = 'не подключён';
+
+        // Подписка на события сети
+        if (this.networkManager) {
+            this.networkManager.onMove((move) => this.makeMoveFromTelegram(move));
+            this.networkManager.onOpponentJoined(() => {
+                document.getElementById('opponent-status').textContent = 'в игре';
+            });
+            this.networkManager.onOpponentOnline(() => {
+                document.getElementById('opponent-status').textContent = 'в игре';
+            });
         }
 
         this.init();
@@ -114,7 +116,7 @@ class Game {
         );
     }
 
-    makeMove(fromX, fromY, fromZ, toX, toY, toZ) {
+    makeMove(fromX, fromY, fromZ, toX, toY, toZ, skipSend = false) {
         const capturedFigure = ChessEngine.Pole[toX][toY][toZ];
         const moveInfo = {
             from: { x: fromX, y: fromY, z: fromZ },
@@ -133,15 +135,13 @@ class Game {
         if (moveResult.success) {
             this.moveHistory.push(moveInfo);
 
-            // Отправляем ход сопернику, только если это не полученный ход
-            if (this.isTelegram && !skipSend) {
-                this.telegramManager.sendMove({
+            // Отправляем ход сопернику, если есть сетевой менеджер и не пропущена отправка
+            if (this.networkManager && !skipSend) {
+                this.networkManager.sendMove({
                     from: { x: fromX, y: fromY, z: fromZ },
                     to: { x: toX, y: toY, z: toZ }
                 });
             }
-
-
 
             GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
             GraphicsEngine.unHighlightingPossibleMoves();
@@ -157,14 +157,12 @@ class Game {
         GraphicsEngine.unselectCell();
     }
 
-    // Метод для получения хода от соперника через Telegram
     makeMoveFromTelegram(move) {
         this.makeMove(move.from.x, move.from.y, move.from.z, move.to.x, move.to.y, move.to.z, true);
     }
 
-    // Определяем, можем ли мы ходить (если это наш ход)
     isMyTurn() {
-        if (!this.isTelegram) return true; // локально всегда можем
+        if (!this.networkManager) return true; // локально всегда можно ходить
         return this.playerColor === this.currentPlayer;
     }
 
@@ -464,76 +462,3 @@ class Game {
         GraphicsEngine.updateColors(colors);
     }
 }
-
-class TelegramNetworkManager {
-    constructor(game) {
-        this.game = game;
-        this.init();
-        this.sendInit();
-    }
-
-    init() {
-        window.Telegram.WebApp.onEvent('message', (data) => {
-            try {
-                const msg = JSON.parse(data);
-                switch (msg.type) {
-                    case 'move':
-                        this.game.makeMoveFromTelegram(msg.move);
-                        break;
-                    case 'opponent_joined':
-                    case 'opponent_online':
-                        document.getElementById('opponent-status').textContent = 'в игре';
-                        break;
-                    default:
-                        console.log('Неизвестный тип сообщения', msg);
-                }
-            } catch (e) {
-                console.error('Ошибка обработки сообщения Telegram', e);
-            }
-        });
-    }
-
-    sendInit() {
-        window.Telegram.WebApp.sendData(JSON.stringify({
-            type: 'init',
-            roomId: this.game.roomId,
-            color: this.game.playerColor
-        }));
-    }
-
-    sendMove(move) {
-        window.Telegram.WebApp.sendData(JSON.stringify({
-            type: 'move',
-            roomId: this.game.roomId,
-            playerColor: this.game.playerColor,
-            move: move
-        }));
-    }
-
-    // Периодический poll для получения отложенных ходов (можно вызывать после каждого хода или по таймеру)
-    pollMoves() {
-        window.Telegram.WebApp.sendData(JSON.stringify({
-            type: 'poll',
-            roomId: this.game.roomId
-        }));
-    }
-}
-
-
-// Инициализация игры при загрузке страницы
-window.addEventListener('load', () => {
-    window.chessGame = new Game();
-});
-
-// Обработчики для изменения цветов фигур
-document.getElementById('white-figures-color').addEventListener('input', (e) => {
-    const colors = GraphicsEngine.getColors();
-    colors.whiteFigureColor = GraphicsEngine.hexToColor(e.target.value);
-    GraphicsEngine.updateColors(colors);
-});
-
-document.getElementById('black-figures-color').addEventListener('input', (e) => {
-    const colors = GraphicsEngine.getColors();
-    colors.blackFigureColor = GraphicsEngine.hexToColor(e.target.value);
-    GraphicsEngine.updateColors(colors);
-});
