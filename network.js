@@ -24,7 +24,11 @@ class TelegramNetworkManager extends NetworkManager {
         if (!window.Telegram?.WebApp) {
             throw new Error("Not in Telegram");
         }
-
+        if (!window.Telegram?.WebApp) {
+            document.getElementById('tg-check').textContent = '❌ отсутствует';
+        } else {
+            document.getElementById('tg-check').textContent = '✅ присутствует';
+        }
         // Инициализация
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
