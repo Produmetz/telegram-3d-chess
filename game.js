@@ -19,15 +19,8 @@ class Game {
 
         // Подписка на события сети
         if (this.networkManager) {
-            this.networkManager.onMove((move) => {
-                document.getElementById('tg-status').textContent = 'Получен ход соперника';
-                this.makeMoveFromTelegram(move);
-            });
             this.networkManager.onMove((move) => this.makeMoveFromTelegram(move));
             this.networkManager.onOpponentJoined(() => {
-                document.getElementById('opponent-status').textContent = 'в игре';
-            });
-            this.networkManager.onOpponentOnline(() => {
                 document.getElementById('opponent-status').textContent = 'в игре';
             });
         }
@@ -145,7 +138,6 @@ class Game {
                     from: { x: fromX, y: fromY, z: fromZ },
                     to: { x: toX, y: toY, z: toZ }
                 });
-                document.getElementById('tg-status').textContent = 'Ход отправлен';
             }
 
             GraphicsEngine.createAndFillBoardOnPole(ChessEngine.Pole);
