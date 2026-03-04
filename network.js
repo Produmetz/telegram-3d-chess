@@ -1,5 +1,4 @@
 // network.js
-// network.js
 class NetworkManager {
     constructor() {
         if (new.target === NetworkManager) {
@@ -21,7 +20,6 @@ class TelegramNetworkManager extends NetworkManager {
         this.opponentJoinedCallback = null;
         this.opponentOnlineCallback = null;
         this.pendingMove = null;          // Ход, ожидающий отправки
-        this.initialized = false;         // Был ли уже отправлен init
 
         if (!window.Telegram?.WebApp) {
             throw new Error("Not in Telegram");
@@ -31,40 +29,36 @@ class TelegramNetworkManager extends NetworkManager {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
 
-        // Настраиваем главную кнопку
-        window.Telegram.WebApp.MainButton.setText("Готов");
-        window.Telegram.WebApp.MainButton.show();
-        window.Telegram.WebApp.onEvent('mainButtonClicked', () => this.onMainButtonClick());
-
+        // Настраиваем обработчик сообщений от бота
         this.setupMessageHandler();
+
+        // Привязываем отправку хода к нашей кнопке
+        const sendBtn = document.getElementById('send-move-btn');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => this.sendPendingMove());
+        } else {
+            console.warn('Кнопка "send-move-btn" не найдена в DOM');
+        }
+
+        // Отправляем init сразу при загрузке
+        this.sendInit();
 
         // Для отладки
         document.getElementById('tg-check').textContent = '✅ присутствует';
     }
 
-    onMainButtonClick() {
-        if (!this.initialized) {
-            const initMsg = JSON.stringify({ type: 'init', roomId: this.roomId, color: this.playerColor });
-            console.log("📤 Отправка init:", initMsg);
-            try {
-                window.Telegram.WebApp.sendData(initMsg);
-                console.log("✅ sendData выполнена");
-            } catch (e) {
-                console.error("❌ Ошибка sendData:", e);
-            }
-            this.initialized = true;
-            window.Telegram.WebApp.MainButton.hide();
-        } else if (this.pendingMove) {
-            const msg = JSON.stringify({ type: 'move', roomId: this.roomId, playerColor: this.playerColor, move: this.pendingMove });
-            console.log("📤 Отправка move:", msg);
-            try {
-                window.Telegram.WebApp.sendData(msg);
-                console.log("✅ sendData выполнена");
-            } catch (e) {
-                console.error("❌ Ошибка sendData:", e);
-            }
-            this.pendingMove = null;
-            window.Telegram.WebApp.MainButton.hide();
+    sendInit() {
+        const initMsg = JSON.stringify({
+            type: 'init',
+            roomId: this.roomId,
+            color: this.playerColor
+        });
+        console.log("📤 Отправка init:", initMsg);
+        try {
+            window.Telegram.WebApp.sendData(initMsg);
+            console.log("✅ init отправлен");
+        } catch (e) {
+            console.error("❌ Ошибка sendData init:", e);
         }
     }
 
@@ -79,8 +73,12 @@ class TelegramNetworkManager extends NetworkManager {
                         break;
                     case 'opponent_joined':
                     case 'opponent_online':
-                        if (msg.type === 'opponent_joined' && this.opponentJoinedCallback) this.opponentJoinedCallback();
-                        if (msg.type === 'opponent_online' && this.opponentOnlineCallback) this.opponentOnlineCallback();
+                        if (msg.type === 'opponent_joined' && this.opponentJoinedCallback) {
+                            this.opponentJoinedCallback();
+                        }
+                        if (msg.type === 'opponent_online' && this.opponentOnlineCallback) {
+                            this.opponentOnlineCallback();
+                        }
                         break;
                     default:
                         console.log('Неизвестный тип сообщения', msg);
@@ -94,8 +92,37 @@ class TelegramNetworkManager extends NetworkManager {
     sendMove(move) {
         // Сохраняем ход и показываем кнопку отправки
         this.pendingMove = move;
-        window.Telegram.WebApp.MainButton.setText("Отправить ход");
-        window.Telegram.WebApp.MainButton.show();
+        const sendBtn = document.getElementById('send-move-btn');
+        if (sendBtn) {
+            sendBtn.style.display = 'inline-block';
+        }
+    }
+
+    sendPendingMove() {
+        if (!this.pendingMove) {
+            console.log("Нет ожидающего хода для отправки");
+            return;
+        }
+
+        const msg = JSON.stringify({
+            type: 'move',
+            roomId: this.roomId,
+            playerColor: this.playerColor,
+            move: this.pendingMove
+        });
+        console.log("📤 Отправка move:", msg);
+        try {
+            window.Telegram.WebApp.sendData(msg);
+            console.log("✅ move отправлен");
+            this.pendingMove = null;
+            // Скрываем кнопку после отправки
+            const sendBtn = document.getElementById('send-move-btn');
+            if (sendBtn) {
+                sendBtn.style.display = 'none';
+            }
+        } catch (e) {
+            console.error("❌ Ошибка sendData move:", e);
+        }
     }
 
     onMove(callback) {
