@@ -44,26 +44,25 @@ class TelegramNetworkManager extends NetworkManager {
 
     onMainButtonClick() {
         if (!this.initialized) {
-            // Первый раз — отправляем init
-            const initMsg = JSON.stringify({
-                type: 'init',
-                roomId: this.roomId,
-                color: this.playerColor
-            });
+            const initMsg = JSON.stringify({ type: 'init', roomId: this.roomId, color: this.playerColor });
             console.log("📤 Отправка init:", initMsg);
-            window.Telegram.WebApp.sendData(initMsg);
+            try {
+                window.Telegram.WebApp.sendData(initMsg);
+                console.log("✅ sendData выполнена");
+            } catch (e) {
+                console.error("❌ Ошибка sendData:", e);
+            }
             this.initialized = true;
             window.Telegram.WebApp.MainButton.hide();
         } else if (this.pendingMove) {
-            // Есть неотправленный ход — отправляем его
-            const msg = JSON.stringify({
-                type: 'move',
-                roomId: this.roomId,
-                playerColor: this.playerColor,
-                move: this.pendingMove
-            });
+            const msg = JSON.stringify({ type: 'move', roomId: this.roomId, playerColor: this.playerColor, move: this.pendingMove });
             console.log("📤 Отправка move:", msg);
-            window.Telegram.WebApp.sendData(msg);
+            try {
+                window.Telegram.WebApp.sendData(msg);
+                console.log("✅ sendData выполнена");
+            } catch (e) {
+                console.error("❌ Ошибка sendData:", e);
+            }
             this.pendingMove = null;
             window.Telegram.WebApp.MainButton.hide();
         }
