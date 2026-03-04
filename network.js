@@ -33,6 +33,7 @@ class TelegramNetworkManager extends NetworkManager {
 
     init() {
         window.Telegram.WebApp.onEvent('message', (data) => {
+            console.log("📩 Получено от бота:", data);
             try {
                 const msg = JSON.parse(data);
                 switch (msg.type) {
@@ -45,19 +46,20 @@ class TelegramNetworkManager extends NetworkManager {
                         if (msg.type === 'opponent_online' && this.opponentOnlineCallback) this.opponentOnlineCallback();
                         break;
                     default:
-                        console.log('Unknown message type', msg);
+                        console.log('Неизвестный тип сообщения', msg);
                 }
             } catch (e) {
-                console.error('Error processing Telegram message', e);
+                console.error('Ошибка обработки сообщения от бота', e);
             }
         });
 
-        // Отправляем init-сообщение боту
-        window.Telegram.WebApp.sendData(JSON.stringify({
+        const initMsg = JSON.stringify({
             type: 'init',
             roomId: this.roomId,
             color: this.playerColor
-        }));
+        });
+        console.log("📤 Отправка init:", initMsg);
+        window.Telegram.WebApp.sendData(initMsg);
     }
 
     sendMove(move) {
