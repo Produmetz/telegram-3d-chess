@@ -15,11 +15,10 @@ class TelegramNetworkManager extends NetworkManager {
     constructor(roomId, playerColor) {
         super();
         this.roomId = roomId;
-        this.playerColor = playerColor;
+        this.playerColor = playerColor; // 'White' или 'Black'
         this.moveCallback = null;
         this.opponentJoinedCallback = null;
         this.opponentOnlineCallback = null;
-        this.pendingMove = null;          // Ход, ожидающий отправки
 
         if (!window.Telegram?.WebApp) {
             throw new Error("Not in Telegram");
@@ -32,16 +31,11 @@ class TelegramNetworkManager extends NetworkManager {
         // Настраиваем обработчик сообщений от бота
         this.setupMessageHandler();
 
-        // Привязываем отправку хода к нашей кнопке
-        const sendBtn = document.getElementById('send-move-btn');
-        if (sendBtn) {
-            sendBtn.addEventListener('click', () => this.sendPendingMove());
-        } else {
-            console.warn('Кнопка "send-move-btn" не найдена в DOM');
-        }
-
         // Отправляем init сразу при загрузке
         this.sendInit();
+
+        // Запускаем периодический опрос (poll) каждые 3 секунды
+        this.pollInterval = setInterval(() => this.sendPoll(), 3000);
 
         // Для отладки
         document.getElementById('tg-check').textContent = '✅ присутствует';
@@ -62,27 +56,47 @@ class TelegramNetworkManager extends NetworkManager {
         }
     }
 
+    sendPoll() {
+        const pollMsg = JSON.stringify({
+            type: 'poll',
+            roomId: this.roomId,
+            color: this.playerColor
+        });
+        console.log("📤 Отправка poll");
+        try {
+            window.Telegram.WebApp.sendData(pollMsg);
+        } catch (e) {
+            console.error("❌ Ошибка sendData poll:", e);
+        }
+    }
+
     setupMessageHandler() {
         window.Telegram.WebApp.onEvent('message', (data) => {
             console.log("📩 Получено от бота:", data);
             try {
-                const msg = JSON.parse(data);
-                switch (msg.type) {
-                    case 'move':
-                        if (this.moveCallback) this.moveCallback(msg.move);
-                        break;
-                    case 'opponent_joined':
-                    case 'opponent_online':
-                        if (msg.type === 'opponent_joined' && this.opponentJoinedCallback) {
-                            this.opponentJoinedCallback();
-                        }
-                        if (msg.type === 'opponent_online' && this.opponentOnlineCallback) {
-                            this.opponentOnlineCallback();
-                        }
-                        break;
-                    default:
-                        console.log('Неизвестный тип сообщения', msg);
+                const events = JSON.parse(data); // бот присылает массив событий
+                if (!Array.isArray(events)) {
+                    console.warn("Ожидался массив событий, получено:", events);
+                    return;
                 }
+                events.forEach(msg => {
+                    switch (msg.type) {
+                        case 'move':
+                            if (this.moveCallback) this.moveCallback(msg.move);
+                            break;
+                        case 'opponent_joined':
+                        case 'opponent_online':
+                            if (msg.type === 'opponent_joined' && this.opponentJoinedCallback) {
+                                this.opponentJoinedCallback();
+                            }
+                            if (msg.type === 'opponent_online' && this.opponentOnlineCallback) {
+                                this.opponentOnlineCallback();
+                            }
+                            break;
+                        default:
+                            console.log('Неизвестный тип сообщения', msg);
+                    }
+                });
             } catch (e) {
                 console.error('Ошибка обработки сообщения от бота', e);
             }
@@ -90,36 +104,16 @@ class TelegramNetworkManager extends NetworkManager {
     }
 
     sendMove(move) {
-        // Сохраняем ход и показываем кнопку отправки
-        this.pendingMove = move;
-        const sendBtn = document.getElementById('send-move-btn');
-        if (sendBtn) {
-            sendBtn.style.display = 'inline-block';
-        }
-    }
-
-    sendPendingMove() {
-        if (!this.pendingMove) {
-            console.log("Нет ожидающего хода для отправки");
-            return;
-        }
-
         const msg = JSON.stringify({
             type: 'move',
             roomId: this.roomId,
-            playerColor: this.playerColor,
-            move: this.pendingMove
+            color: this.playerColor,
+            move: move
         });
         console.log("📤 Отправка move:", msg);
         try {
             window.Telegram.WebApp.sendData(msg);
             console.log("✅ move отправлен");
-            this.pendingMove = null;
-            // Скрываем кнопку после отправки
-            const sendBtn = document.getElementById('send-move-btn');
-            if (sendBtn) {
-                sendBtn.style.display = 'none';
-            }
         } catch (e) {
             console.error("❌ Ошибка sendData move:", e);
         }
@@ -135,5 +129,12 @@ class TelegramNetworkManager extends NetworkManager {
 
     onOpponentOnline(callback) {
         this.opponentOnlineCallback = callback;
+    }
+
+    // Если нужно остановить polling (например, при закрытии страницы)
+    destroy() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+        }
     }
 }
