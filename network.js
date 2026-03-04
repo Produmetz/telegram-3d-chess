@@ -1,4 +1,5 @@
 // network.js
+// network.js
 class NetworkManager {
     constructor() {
         if (new.target === NetworkManager) {
@@ -19,29 +20,58 @@ class TelegramNetworkManager extends NetworkManager {
         this.moveCallback = null;
         this.opponentJoinedCallback = null;
         this.opponentOnlineCallback = null;
-        this.pollInterval = null;
+        this.pendingMove = null;          // Ход, ожидающий отправки
+        this.initialized = false;         // Был ли уже отправлен init
 
         if (!window.Telegram?.WebApp) {
             throw new Error("Not in Telegram");
         }
-        if (!window.Telegram?.WebApp) {
-            document.getElementById('tg-check').textContent = '❌ отсутствует';
-        } else {
-            document.getElementById('tg-check').textContent = '✅ присутствует';
-        }
-        // Инициализация
+
+        // Инициализация WebApp
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
 
+        // Настраиваем главную кнопку
+        window.Telegram.WebApp.MainButton.setText("Готов");
+        window.Telegram.WebApp.MainButton.show();
+        window.Telegram.WebApp.onEvent('mainButtonClicked', () => this.onMainButtonClick());
+
         this.setupMessageHandler();
-        this.sendInit();
-        this.startPolling(2000);
+
+        // Для отладки
+        document.getElementById('tg-check').textContent = '✅ присутствует';
+    }
+
+    onMainButtonClick() {
+        if (!this.initialized) {
+            // Первый раз — отправляем init
+            const initMsg = JSON.stringify({
+                type: 'init',
+                roomId: this.roomId,
+                color: this.playerColor
+            });
+            console.log("📤 Отправка init:", initMsg);
+            window.Telegram.WebApp.sendData(initMsg);
+            this.initialized = true;
+            window.Telegram.WebApp.MainButton.hide();
+        } else if (this.pendingMove) {
+            // Есть неотправленный ход — отправляем его
+            const msg = JSON.stringify({
+                type: 'move',
+                roomId: this.roomId,
+                playerColor: this.playerColor,
+                move: this.pendingMove
+            });
+            console.log("📤 Отправка move:", msg);
+            window.Telegram.WebApp.sendData(msg);
+            this.pendingMove = null;
+            window.Telegram.WebApp.MainButton.hide();
+        }
     }
 
     setupMessageHandler() {
         window.Telegram.WebApp.onEvent('message', (data) => {
             console.log("📩 Получено от бота:", data);
-            document.getElementById('tg-status').textContent = 'Получено сообщение';
             try {
                 const msg = JSON.parse(data);
                 switch (msg.type) {
@@ -58,51 +88,15 @@ class TelegramNetworkManager extends NetworkManager {
                 }
             } catch (e) {
                 console.error('Ошибка обработки сообщения от бота', e);
-                document.getElementById('tg-status').textContent = 'Ошибка сообщения';
             }
         });
     }
 
-    sendInit() {
-        const initMsg = JSON.stringify({
-            type: 'init',
-            roomId: this.roomId,
-            color: this.playerColor
-        });
-        console.log("📤 Отправка init:", initMsg);
-        document.getElementById('tg-status').textContent = 'Отправка init...';
-        window.Telegram.WebApp.sendData(initMsg);
-    }
-
     sendMove(move) {
-        const msg = JSON.stringify({
-            type: 'move',
-            roomId: this.roomId,
-            playerColor: this.playerColor,
-            move: move
-        });
-        console.log("📤 Отправка move:", msg);
-        document.getElementById('tg-status').textContent = 'Отправка хода...';
-        window.Telegram.WebApp.sendData(msg);
-    }
-
-    pollMoves() {
-        const msg = JSON.stringify({
-            type: 'poll',
-            roomId: this.roomId
-        });
-        window.Telegram.WebApp.sendData(msg);
-    }
-
-    startPolling(interval) {
-        this.pollInterval = setInterval(() => this.pollMoves(), interval);
-    }
-
-    stopPolling() {
-        if (this.pollInterval) {
-            clearInterval(this.pollInterval);
-            this.pollInterval = null;
-        }
+        // Сохраняем ход и показываем кнопку отправки
+        this.pendingMove = move;
+        window.Telegram.WebApp.MainButton.setText("Отправить ход");
+        window.Telegram.WebApp.MainButton.show();
     }
 
     onMove(callback) {
