@@ -34,9 +34,12 @@ class TelegramNetworkManager {
 
         // Отправляем init сразу
         this.sendData({ type: 'init', roomId, color: playerColor });
+        console.log('📤 Init sent');
+
     }
 
     sendData(obj) {
+        console.log('📤 Sending data:', JSON.stringify(obj));
         window.Telegram.WebApp.sendData(JSON.stringify(obj));
     }
 
