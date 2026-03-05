@@ -15,7 +15,7 @@ class TelegramNetworkManager {
         // Обработчик входящих сообщений от бота
         window.Telegram.WebApp.onEvent('message', (data) => {
             try {
-                const events = JSON.parse(data); // ожидаем массив событий
+                const events = JSON.parse(data); // ожидается массив
                 events.forEach(ev => {
                     if (ev.type === 'move' && this.moveCallback) {
                         this.moveCallback(ev.move);
